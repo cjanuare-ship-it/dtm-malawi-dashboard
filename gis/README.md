@@ -10,13 +10,15 @@ repository only holds encrypted data, and the page decrypts in the browser after
    - *Viewer*: read-only, no further password.
    - *Technician*: technician password; can add and style layers, build the report and prepare updates.
 
-## Updating the published site
-1. Sign in as a technician, make the changes, press **Publish → Download site file for a server** (gives an unencrypted `index.html`).
-2. Encrypt it on your computer (Node.js required). Never upload the unencrypted file to this public repository:
-   ```
-   npx staticrypt index.html -p "<site password>" --short --remember 30 -d encrypted
-   ```
-3. Upload `encrypted/index.html` into this `gis/` folder (Add file → Upload files), replacing `index.html`. GitHub Pages updates within a minute or two.
+## Updating the published site (technicians)
+1. Open the site, enter the site password, choose **Technician** and sign in.
+2. Make the changes, then press **Publish → Publish to the live site on GitHub**.
+3. Enter the **site password** and a **GitHub fine-grained token** (first time only):
+   GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token →
+   *Only select repositories*: this repository → Repository permissions → **Contents: Read and write** → set an expiry → Generate.
+4. The page encrypts the new version in the browser and commits it here. GitHub Pages updates the site for viewers in about a minute.
+
+The unencrypted site file (Publish → Download the site file) is for other servers only. Never upload it to this public repository.
 
 Boundaries: OCHA COD-AB Malawi 2023 · Basemap: Natural Earth · Prototype — for illustration only. The boundaries and names shown and the
 designations used do not imply official endorsement or acceptance by IOM.
