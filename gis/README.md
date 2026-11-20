@@ -18,6 +18,12 @@ repository only holds encrypted data, and the page decrypts in the browser after
    *Only select repositories*: this repository → Repository permissions → **Contents: Read and write** → set an expiry → Generate.
 4. The page encrypts the new version in the browser and commits it here. GitHub Pages updates the site for viewers in about a minute.
 
+## Chatbot (Ask the data)
+The chatbot answers from the published layers. Without any set-up it uses its **built-in engine** (works offline: totals,
+counts, averages, shares, rankings, comparisons, filters, areas, cyclone crossings). For full Claude answers for every
+visitor, set up the small proxy in [`ai-proxy/`](ai-proxy/) once (Cloudflare, free) and enter its address in the
+site's assistant settings, then publish. The API key stays in Cloudflare, never in this repository or the website.
+
 ## Heavy data
 The map is drawn by the graphics card (WebGL), files are read in the background, and drafts store each layer only once, so
 large layers (hundreds of thousands of features, millions of vertices) stay responsive. Viewers still download every published
