@@ -6,7 +6,7 @@ No names of key informants, enumerators or phone numbers are carried over."""
 import pandas as pd, numpy as np, geopandas as gpd, json, gzip, base64, os, shapely
 from shapely.geometry import LineString, shape
 os.environ['SHAPE_RESTORE_SHX'] = 'YES'
-m = pd.read_pickle('main.pkl')
+m = pd.read_excel('bsa.xlsx', sheet_name=0)  # the BSA export, renamed bsa.xlsx
 m = m[m['META6. Assessment location - district (ADM2)'].notna()].copy()
 def col(code, sub=None):
     cs = [c for c in m.columns if str(c).startswith(code + '.') or str(c).startswith(code + ' ')]
@@ -103,9 +103,8 @@ for pc, d in mm.groupby('_pc'):
     r['idps_now_total'] = int((hf2.fillna(0) + d['_index'].map(st_sum).fillna(0)).sum())
     rows.append(r)
 T = pd.DataFrame(rows)
-ws = json.loads(open('/home/claude/live_ws.json').read()); p = json.loads(gzip.decompress(base64.b64decode(ws['gz'])))
-adm3 = [l for l in p['layers'] if l['name'].startswith('Traditional Authorities')][0]['geojson']
-A = gpd.GeoDataFrame.from_features(adm3['features'], crs=4326)[['adm3_pcode', 'geometry']]
+# TA boundaries: export the "Traditional Authorities (ADM3)" layer from the workspace as GeoJSON (layer menu > Export as GeoJSON)
+A = gpd.read_file('adm3.geojson')[['adm3_pcode', 'geometry']].to_crs(4326)
 TA = A.merge(T, on='adm3_pcode', how='inner')
 TA.to_file('out_ta.geojson', driver='GeoJSON'); print('TA polygons', len(TA), 'of', len(T), 'TAs | missing', set(T.adm3_pcode) - set(TA.adm3_pcode))
 
