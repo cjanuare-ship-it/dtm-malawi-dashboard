@@ -1,10 +1,10 @@
 """Everything here comes from the Drive folder "Data for the Dash" plus the target-area flood frequency GeoPackage shared on 24 Nov 2026:
-DCCMS extreme rainfall and dry spell (January-March), cyclone tracks 2000-2026, flood frequency for all target areas (RE2CLID_target_areas_flood_frequency.gpkg),
+DCCMS extreme rainfall (January-March) and drought risk, IPC projection Oct 2026-Mar 2027, cyclone tracks 2000-2026, flood frequency for all target areas (RE2CLID_target_areas_flood_frequency.gpkg),
 and the BSA preliminary export (13 Nov 2026)."""
 import json, glob, os, re, geopandas as gpd, pandas as pd, numpy as np
 from shapely.ops import unary_union
 os.environ['SHAPE_RESTORE_SHX'] = 'YES'
-rain = gpd.read_file('out_rain.geojson'); dry = gpd.read_file('out_dry.geojson'); cyc = gpd.read_file('out_cyclones.geojson'); gvh = gpd.read_file('out_gvh.geojson')
+rain = gpd.read_file('out_rain.geojson'); drt = gpd.read_file('drv_drought_risk.geojson'); ipc = gpd.read_file('drv_ipc_projection.geojson'); cyc = gpd.read_file('out_cyclones.geojson'); gvh = gpd.read_file('out_gvh.geojson')
 # ---- flood frequency for all target areas (one GeoPackage, kept at full detail as supplied)
 FF = gpd.read_file('/home/claude/ffall/ff.gpkg').rename(columns={'unit': 'district', 'Years_flooded': 'years_flooded'})
 FF['years_class'] = FF.years_flooded.map(lambda y: '1 year' if y == 1 else ('2 years' if y == 2 else ('3–4 years' if y <= 4 else ('5–7 years' if y <= 7 else '8–10 years'))))
@@ -15,7 +15,9 @@ print('flood frequency', len(FF), round(os.path.getsize('drv_flood_frequency.geo
 # ---- district profiles
 LV = {'No threat': 0, 'Moderate': 1, 'Severe': 2, 'Extreme': 3}
 target = set(gvh.district.dropna())
-D = rain[['district', 'region', 'risk', 'geometry']].rename(columns={'risk': 'rain_jfm'}).merge(dry[['district', 'risk']].rename(columns={'risk': 'dry_jfm'}), on='district', how='left')
+rain['district'] = rain.district.replace({'Nkhatabay': 'Nkhata Bay'})
+D = rain[['district', 'region', 'risk', 'geometry']].rename(columns={'risk': 'rain_jfm'}).merge(drt[['district', 'risk']].rename(columns={'risk': 'drought_risk'}), on='district', how='left')
+D = D.merge(pd.DataFrame(ipc.drop(columns='geometry'))[['district', 'area_phase', 'area_phase_label', 'people_in_phase_3_or_worse', 'pct_in_phase_3_or_worse', 'population_analysed']], on='district', how='left')
 alias = {'Blantyre City': 'Blantyre'}  # flood frequency for Blantyre covers the city too
 rows = []
 for _, r in D.iterrows():
@@ -23,10 +25,11 @@ for _, r in D.iterrows():
     st = stats.get(r.district) or {}
     rows.append({'district': r.district, 'region': r.region, 'target': r.district in target,
       'rain_jfm': r.rain_jfm, 'rain_narrative': f'Extreme rainfall risk for January–March is {r.rain_jfm.lower() if r.rain_jfm != "No threat" else "none (no threat)"}.',
-      'dry_jfm': r.dry_jfm, 'dry_narrative': f'Dry spell risk for January–March is {r.dry_jfm.lower() if r.dry_jfm != "No threat" else "none (no threat)"}.',
+      'drought_risk': r.drought_risk, 'drought_narrative': f'Drought risk is {r.drought_risk.lower() if r.drought_risk != "No threat" else "none (no threat)"}.',
+      'ipc_phase': r.area_phase, 'ipc_phase_label': r.area_phase_label, 'ipc_p3plus': None if pd.isna(r.people_in_phase_3_or_worse) else int(r.people_in_phase_3_or_worse), 'ipc_p3plus_pct': None if pd.isna(r.pct_in_phase_3_or_worse) else float(r.pct_in_phase_3_or_worse), 'ipc_population': None if pd.isna(r.population_analysed) else int(r.population_analysed),
       'cyclone_count': len(names), 'cyclone_names': ', '.join(names),
       'cyclone_narrative': 'No cyclone track in the dataset crosses the district.' if not names else ('One cyclone track in the dataset crosses the district.' if len(names) == 1 else f'{len(names)} cyclone tracks in the dataset cross the district.'),
       'flood_area_any_km2': st.get('flood_area_any_km2'), 'flood_area_5plus_km2': st.get('flood_area_5plus_km2'), 'flood_max_years': st.get('flood_max_years')})
 P = gpd.GeoDataFrame(rows, geometry=D.geometry.values, crs=4326)
 P.to_file('drv_district_profiles.geojson', driver='GeoJSON')
-print(P[P.target][['district', 'rain_jfm', 'dry_jfm', 'cyclone_count', 'flood_area_any_km2', 'flood_area_5plus_km2']].to_string())
+print(P[P.target][['district', 'rain_jfm', 'drought_risk', 'ipc_phase', 'ipc_p3plus', 'cyclone_count', 'flood_area_any_km2', 'flood_area_5plus_km2']].to_string())
