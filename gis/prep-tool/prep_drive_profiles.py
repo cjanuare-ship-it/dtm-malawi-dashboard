@@ -1,27 +1,17 @@
-"""Everything here comes from the Drive folder "Data for the Dash" only:
-DCCMS extreme rainfall and dry spell (January-March), cyclone tracks 2000-2026, Sentinel-1 flood frequency (7 districts),
+"""Everything here comes from the Drive folder "Data for the Dash" plus the target-area flood frequency GeoPackage shared on 24 Nov 2026:
+DCCMS extreme rainfall and dry spell (January-March), cyclone tracks 2000-2026, flood frequency for all target areas (RE2CLID_target_areas_flood_frequency.gpkg),
 and the BSA preliminary export (13 Nov 2026)."""
 import json, glob, os, re, geopandas as gpd, pandas as pd, numpy as np
 from shapely.ops import unary_union
 os.environ['SHAPE_RESTORE_SHX'] = 'YES'
 rain = gpd.read_file('out_rain.geojson'); dry = gpd.read_file('out_dry.geojson'); cyc = gpd.read_file('out_cyclones.geojson'); gvh = gpd.read_file('out_gvh.geojson')
-# ---- flood frequency: one layer, years flooded out of 10, 'never flooded' class dropped, simplified to 20 m
-parts = []; stats = {}
-for f in sorted(glob.glob('ff/*_Flood_Frequency.geojson')):
-    d = re.match(r'ff/(.+)_Flood_Frequency', f).group(1); g = gpd.read_file(f)
-    g = g[g.Years_flooded > 0].copy(); g['district'] = d
-    u = g.to_crs(32736)
-    # pixel outlines are heavy: close 1-pixel gaps, drop patches under 2 ha, then simplify to 40 m (map display only; areas in the profile use the original figures)
-    u['geometry'] = u.geometry.buffer(15, resolution=1).buffer(-15, resolution=1).simplify(40, preserve_topology=True)
-    u = u.explode(index_parts=False); u = u[u.geometry.area >= 20000]; u = u.dissolve(by='Years_flooded', as_index=False, aggfunc='first')
-    parts.append(u.to_crs(4326)[['district', 'Years_flooded', 'Freq_pct', 'Description', 'Area_km2', 'geometry']])
-    stats[d] = {'flood_area_any_km2': round(float(g.Area_km2.sum()), 1), 'flood_area_5plus_km2': round(float(g[g.Years_flooded >= 5].Area_km2.sum()), 1), 'flood_max_years': int(g.Years_flooded.max())}
-FF = pd.concat(parts, ignore_index=True)
-FF = gpd.GeoDataFrame(FF.rename(columns={'Years_flooded': 'years_flooded', 'Freq_pct': 'pct_of_years', 'Description': 'description', 'Area_km2': 'area_km2'}), crs=4326)
+# ---- flood frequency for all target areas (one GeoPackage, kept at full detail as supplied)
+FF = gpd.read_file('/home/claude/ffall/ff.gpkg').rename(columns={'unit': 'district', 'Years_flooded': 'years_flooded'})
 FF['years_class'] = FF.years_flooded.map(lambda y: '1 year' if y == 1 else ('2 years' if y == 2 else ('3–4 years' if y <= 4 else ('5–7 years' if y <= 7 else '8–10 years'))))
-FF = FF.dissolve(by=['district', 'years_class'], as_index=False, aggfunc={'area_km2': 'sum', 'years_flooded': 'min'})
-FF['geometry'] = FF.geometry.set_precision(1e-5)
-FF.to_file('drv_flood_frequency.geojson', driver='GeoJSON', COORDINATE_PRECISION=5); print('flood frequency', len(FF), round(os.path.getsize('drv_flood_frequency.geojson') / 1e6, 2), 'MB')
+FF['area_km2'] = (FF.to_crs(32736).area / 1e6).round(3)
+FF[['district', 'years_flooded', 'years_class', 'area_km2', 'geometry']].to_file('drv_flood_frequency.geojson', driver='GeoJSON')
+stats = {d: {'flood_area_any_km2': round(float(g.area_km2.sum()), 1), 'flood_area_5plus_km2': round(float(g[g.years_flooded >= 5].area_km2.sum()), 1), 'flood_max_years': int(g.years_flooded.max())} for d, g in FF.groupby('district')}
+print('flood frequency', len(FF), round(os.path.getsize('drv_flood_frequency.geojson') / 1e6, 1), 'MB')
 # ---- district profiles
 LV = {'No threat': 0, 'Moderate': 1, 'Severe': 2, 'Extreme': 3}
 target = set(gvh.district.dropna())
